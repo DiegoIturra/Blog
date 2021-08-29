@@ -3,6 +3,7 @@ from flask_bootstrap import Bootstrap
 from flask_wtf import FlaskForm
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_mail import Mail,Message
 from wtforms import StringField , SubmitField
 from wtforms.validators import DataRequired
 import os
@@ -14,9 +15,27 @@ app.config["SECRET_KEY"] = "HARD TO GUEESS STRING"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir,"data.sqlite")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+#Mail configuration
+app.config["FLASKY_ADMIN"] = "diego269707@gmail.com"
+app.config["FLASKY_MAIL_SUBJECT_PREFIX"] = "[Flasky]"
+app.config["FLASKY_MAIL_SENDER"] = "Flasky Admin <diego269707@gmail.com>"
+app.config["MAIL_SERVER"] = "smtp.gmail.com"
+app.config["MAIL_PORT"] = 587
+app.config["MAIL_USE_TLS"] = True
+app.config["MAIL_USERNAME"] = "diego269707@gmail.com"
+app.config["MAIL_PASSWORD"] = "FLASKY1997diego"
+
+mail = Mail(app)
 bootstrap = Bootstrap(app)
 db = SQLAlchemy(app)
 migrate = Migrate(app,db)
+
+
+def send_email(to,subject,template,**kwargs):
+	msg = Message(app.config["FLASKY_MAIL_SUBJECT_PREFIX"]+subject,sender=app.config["FLASKY_MAIL_SENDER"],recipients=[to])
+	msg.body = render_template(template+".txt",**kwargs)
+	msg.html = render_template(template+".html",**kwargs)
+	mail.send(msg)
 
 class NameForm(FlaskForm):
 	name = StringField("What is your name?" , validators=[DataRequired()])
@@ -61,15 +80,17 @@ def index():
 		if user is None:
 			user = User(username=form.name.data)
 			db.session.add(user)
-			db.session.commit()
+			#db.session.commit()
 			session["known"] = False
+			if app.config["FLASKY_ADMIN"]:
+				send_email(app.config["FLASKY_ADMIN"],"New User","mail/new_user",user=user)
 		#else session["known"] is True
 		else:
 			session["known"] = True
 		session["name"] = form.name.data
 		form.name.data = ""
 		return redirect(url_for("index"))
-	return render_template('index.html',form=form,name=session.get("name"),known=session.get("known"))
+	return render_template('index.html',form=form,name=session.get("name"),known=session.get("known",False))
 
 
 @app.route('/user/<name>')
