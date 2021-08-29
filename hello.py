@@ -6,6 +6,7 @@ from flask_migrate import Migrate
 from flask_mail import Mail,Message
 from wtforms import StringField , SubmitField
 from wtforms.validators import DataRequired
+from threading import Thread
 import os
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -31,11 +32,19 @@ db = SQLAlchemy(app)
 migrate = Migrate(app,db)
 
 
+def send_asyn_email(app,msg):
+	with app.app_context():
+		mail.send(msg)
+
+
 def send_email(to,subject,template,**kwargs):
 	msg = Message(app.config["FLASKY_MAIL_SUBJECT_PREFIX"]+subject,sender=app.config["FLASKY_MAIL_SENDER"],recipients=[to])
 	msg.body = render_template(template+".txt",**kwargs)
 	msg.html = render_template(template+".html",**kwargs)
-	mail.send(msg)
+	thread = Thread(target=send_asyn_email, args=[app,msg])
+	thread.start()
+	return thread
+
 
 class NameForm(FlaskForm):
 	name = StringField("What is your name?" , validators=[DataRequired()])
